@@ -1,0 +1,9 @@
+{
+    "entity_name": "botServerless",
+    "attributes": {
+        "id": "S",
+        "text": "SSS"
+    },
+    "index_attr": 1,
+    "key_schema_attr": 1
+}

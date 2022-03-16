@@ -1,0 +1,146 @@
+service: botServerless
+
+provider:
+  name: aws
+  runtime: python3.8
+  stage: dev
+  region: us-east-1
+  profile: ${self:provider.stage}
+  environment: 
+    DYNAMODB_TABLE: ${self:service}-${self:provider.stage}
+    SUPPORT_ENGG_EMAIL: support@yourdomain.com
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - logs:CreateLogGroup
+        - logs:CreateLogStream
+        - logs:PutLogEvents
+        - logs:DescribeLogGroups
+        - logs:PutMetricFilter
+        - logs:DeleteMetricFilter
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - cloudwatch:PutMetricAlarm
+        - cloudwatch:DeleteAlarms
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - SNS:CreateTopic
+        - SNS:Subscribe
+      Resource: "*"
+    - Effect: "Allow"
+      Action:
+        - "secretsmanager:*"
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+package:
+  patterns:
+    - '!node_modules/**'
+    - '!package-lock.json'
+    - '!package.json'
+    - '!__pycache__/**'
+    - '!tests/**'
+    - '!README.md'
+
+functions:
+  botServerless-create:
+    handler: create.create
+    events:
+      - http:
+          path: botServerless
+          method: post
+          cors: true
+          
+          
+  botServerless-list:
+    handler: list.list
+    events:
+      - http:
+          path: botServerless
+          method: get
+          cors: true
+          
+
+  botServerless-get:
+    handler: get.get
+    events:
+      - http:
+          path: botServerless/{id}
+          method: get
+          cors: true
+          
+
+  botServerless-update:
+    handler: update.update
+    events:
+      - http:
+          path: botServerless/{id}
+          method: put
+          cors: true
+          
+
+  botServerless-delete:
+    handler: delete.delete
+    events:
+      - http:
+          path: botServerless/{id}
+          method: delete
+          cors: true
+          
+
+resources:
+  Resources:
+    BotserverlessDynamoDbTable:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          -
+            AttributeName: id
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: id
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: ${self:provider.environment.DYNAMODB_TABLE}
+
+plugins:
+  - serverless-python-requirements
+  - serverless-plugin-aws-alerts
+  - serverless-package-external
+custom:
+  logRetentionInDays:
+    prod: 30
+    dev: 7
+    qa: 7
+  pythonRequirements:
+    noDeploy: []
+    pythonBin: python3
+  alerts:
+    stages:
+      - prod
+    dashboards: false
+    nameTemplate: ${self:service}-$[functionName]-$[metricName]-Alarm
+    topics:
+      alarm: 
+        topic: ${self:service}-${self:provider.stage}-alerts-alarm
+        notifications:
+          - protocol: email
+            endpoint: ${self:provider.environment.SUPPORT_ENGG_EMAIL}
+    alarms:
+      - functionErrors
+  packageExternal:
+    external:
+      - 'src/common'
